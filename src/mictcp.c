@@ -11,6 +11,9 @@ mic_tcp_sock liste_sockets[MAXIMUM_SOCKETS];
 int compteur_socket = 0;
 int sockets_crees[MAXIMUM_SOCKETS];
 
+/*---------------------------------------------------------------------------------
+                                Fonctions Persos
+----------------------------------------------------------------------------------*/
 
 int socket_exist(int nbr)
 {
@@ -20,6 +23,11 @@ int socket_exist(int nbr)
     }
     return 0;
 }
+
+
+/*---------------------------------------------------------------------------------
+                                  Fonctions TCP
+----------------------------------------------------------------------------------*/
 
 /*
  * Permet de créer un socket entre l’application et MIC-TCP
@@ -82,6 +90,25 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
  */
 int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 {   // verifier si le socket auquel on veut envoyer l'information existe sinon -1
+
+    printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
+    // creation d'un PDU
+    mic_tcp_pdu pdu_envoyer;
+
+    // partie header
+    pdu_envoyer.header.dest_port = liste_sockets[mic_sock].remote_addr.port;
+    pdu_envoyer.header.source_port = liste_sockets[mic_sock].local_addr.port;
+    pdu_envoyer.header.syn = 0;
+    // partie données utile
+    pdu_envoyer.payload.data = mesg;
+    pdu_envoyer.payload.size = mesg_size;
+
+    return IP_send(pdu_envoyer, liste_sockets[mic_sock].remote_addr.ip_addr);
+
+}
+/*
+int mic_tcp_send_ANCIEN (int mic_sock, char* mesg, int mesg_size)
+{   // verifier si le socket auquel on veut envoyer l'information existe sinon -1
   // on prend le socket disponible 
     liste_sockets[compteur_socket].fd = mic_sock;
  // envoyer le message 
@@ -105,18 +132,23 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     return IP_send(pdu_envoyer,addresse_ip_dist);
 }
 
+*/
+
+
 /*
  * Permet à l’application réceptrice de réclamer la récupération d’une donnée
  * stockée dans les buffers de réception du socket
  * Retourne le nombre d’octets lu ou bien -1 en cas d’erreur
  * NB : cette fonction fait appel à la fonction app_buffer_get()
  */
-int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
-{   // demande récupération donnée dans les buffers de reception du socket
-    // nombre d'octets lus
+
+int mic_tcp_recv(int socket, char *mesg, int max_mesg_size)
+{
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
+
+    if (!socket_exist(socket))
+        return -1;
     
-    mic_tcp_payload payload;
     int poid_message = sizeof(mesg);
     int poid_char = sizeof(mesg[0]);
     int nbr_char = poid_message / poid_char;
@@ -124,8 +156,11 @@ int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
     if (max_mesg_size < nbr_char){
         return -1;
     }
-    payload.size = nbr_char;
+
+    mic_tcp_payload payload;
     payload.data = mesg;
+    payload.size = nbr_char;
+    
     return app_buffer_get(payload);
 }
 
@@ -136,7 +171,6 @@ int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
  */
 int mic_tcp_close (int socket)
 {
-
     printf("[MIC-TCP] Appel de la fonction :  "); printf(__FUNCTION__); printf("\n");
     liste_sockets[compteur_socket].fd = socket;
     if (!socket_exist(compteur_socket))
@@ -157,4 +191,5 @@ int mic_tcp_close (int socket)
 void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_ip_addr remote_addr)
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
+    app_buffer_put(pdu.payload);
 }
