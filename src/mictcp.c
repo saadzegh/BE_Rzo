@@ -19,7 +19,7 @@ mic_tcp_sock liste_sockets[MAXIMUM_SOCKETS];
 int compteur_socket = 0;
 int sockets_crees[MAXIMUM_SOCKETS];
 int numSeqPE[MAXIMUM_SOCKETS] = {0};
-int numSeqPA [MAXIMUM_SOCKETS] = {0};
+int numSeqPA[MAXIMUM_SOCKETS] = {0};
 
 /*---------------------------------------------------------------------------------
                                 Fonctions Persos
@@ -140,7 +140,8 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
  * Retourne la taille des données envoyées, et -1 en cas d'erreur
  */
 int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
-{   // verifier si le socket auquel on veut envoyer l'information existe sinon -1
+{  
+    // verifier si le socket auquel on veut envoyer l'information existe sinon -1
 
 
     if (!socket_exist(mic_sock))
@@ -184,11 +185,14 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
         {
             ack_recu =  1;
         }
+    }
         printf("Message %d envoyé : ", numSeqPE[mic_sock]);
         printf(__FUNCTION__);
         printf("\n");
         return 0;
     }
+
+
  /*
  // On définit un temps maximal
     unsigned long temps_max;
@@ -201,7 +205,7 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 
     return IP_send(pdu_envoyer, liste_sockets[mic_sock].remote_addr.ip_addr);
 */
-}
+
 /*
 int mic_tcp_send_ANCIEN (int mic_sock, char* mesg, int mesg_size)
 {   // verifier si le socket auquel on veut envoyer l'information existe sinon -1
@@ -281,8 +285,43 @@ int mic_tcp_close (int socket)
 void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_ip_addr remote_addr)
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
-    app_buffer_put(pdu.payload);
 
-    //
 
+    if (pdu.header.ack == 1)
+    {
+        printf("On a reçu un ack");
+        return;
+    }
+
+    int socket = 0;
+    if (socket == -1)
+    {
+        printf("Pas de chaussette pour cette adresse..."); printf(__FUNCTION__); printf("\n");
+        return;
+    }
+
+
+    if (pdu.header.seq_num == numSeqPA[socket])
+    {
+        printf("Maj du num séquence %d", numSeqPA[socket]);
+        numSeqPA[socket] = (numSeqPA[socket]+1) % 2;
+        app_buffer_put(pdu.payload);
+    }
+
+    mic_tcp_pdu acka40send = {0};
+    acka40send.header.source_port = pdu.header.source_port;
+    acka40send.header.dest_port = pdu.header.dest_port;
+    acka40send.header.seq_num = pdu.header.seq_num;
+    acka40send.header.ack_num = pdu.header.ack_num;
+    acka40send.header.syn = pdu.header.syn;
+    acka40send.header.ack = pdu.header.ack;
+    acka40send.payload.data = pdu.payload.data;
+    acka40send.payload.size = pdu.payload.size;
+
+    printf("On envoie le ack %d", numSeqPA[socket]); printf(__FUNCTION__); printf("\n");
+    //int accent = -1;
+
+    IP_send(acka40send, remote_addr);
+    printf("Ack envoyé, c'est pesé"); printf(__FUNCTION__); printf("\n");
+    
 }
