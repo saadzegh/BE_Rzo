@@ -85,97 +85,57 @@ void send_ack(int socket, mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_i
     printf("Ack envoyé, c'est pesé \n"); printf(__FUNCTION__); printf("\n");
 }
 
-int send_wait_ack (int mic_sock, char* mesg, int mesg_size)
-{  
-    // verifier si le socket auquel on veut envoyer l'information existe sinon -1
-
-
-    if (!socket_exist(mic_sock))
+    int definition_seuil_dynamique(int socket) {
+         if (!socket_exist(socket))
     {
         return -1;
     }
     
-    if (liste_sockets[mic_sock].state != ESTABLISHED)
+    if (liste_sockets[socket].state != ESTABLISHED)
     {
         return -1;
     }
-
     // creation d'un PDU
     mic_tcp_pdu pdu_envoyer;
-    int ack_recu = 0;
-    int envoye = 0;
+    int cpt_ack_recu = 0;
+    int nb_paquets_envoyes=10;
     // partie header
-    pdu_envoyer.header.dest_port = liste_sockets[mic_sock].remote_addr.port;
-    pdu_envoyer.header.source_port = liste_sockets[mic_sock].local_addr.port;
+    pdu_envoyer.header.dest_port = liste_sockets[socket].remote_addr.port;
+    pdu_envoyer.header.source_port = liste_sockets[socket].local_addr.port;
     pdu_envoyer.header.syn = 0;
-    pdu_envoyer.header.seq_num = numSeqPE[mic_sock];
-    pdu_envoyer.header.ack_num = 0;
-    pdu_envoyer.header.fin = 0;
-    //pdu_envoyer.header.ack = 0;
     // partie données utile
-    pdu_envoyer.payload.data = mesg;
-    pdu_envoyer.payload.size = mesg_size;
+    pdu_envoyer.payload.data = "";
+    pdu_envoyer.payload.size =0;
+    for (int i=0;i<=nb_paquets_envoyes;i++) {
+        //verifie la récéption de l'ack
+   
+        int envoye = IP_send(pdu_envoyer, liste_sockets[socket].remote_addr.ip_addr);
+        if (envoye == -1)
+        {
+            continue;
+        } 
 
-    numSeqPE[mic_sock] = (numSeqPE[mic_sock]+1) % 2;
-    //verifie la récéption de l'ack
-    
-    while (!ack_recu) 
-    {
-        envoye = IP_send(pdu_envoyer, liste_sockets[mic_sock].remote_addr.ip_addr);
-
-        printf("On essaye d'envoyer un message : %d \n", numSeqPE[mic_sock]);
+        printf("On essaye d'envoyer un message : %d", numSeqPE[socket]);
         printf(__FUNCTION__);
         printf("\n");
     
-        mic_tcp_pdu pdu_recevoir = {0};
+        mic_tcp_pdu pdu_recevoir;
 
-        mic_tcp_ip_addr local_addr ={0}, remote_addr ={0};
-        local_addr.addr_size = 0;
-        remote_addr.addr_size = 0;
-        printf("!!!!!!!!!!!!!!!!! ON ATTEND LE ACK !!!!!!!!!!!!!!!!\n");
-
-        int recu = IP_recv(&pdu_recevoir, &liste_sockets[mic_sock].local_addr.ip_addr, &liste_sockets[mic_sock].remote_addr.ip_addr, 1000); 
-        printf("Retour IP_Recv : %d \n", recu);
-        printf("ack num pdu rec : %d \n", pdu_recevoir.header.ack_num);
-        printf("num seq emission: %d \n", numSeqPE[mic_sock]);
-        
-        if (recu != -1) 
-        { 
-            if (pdu_recevoir.header.ack_num == numSeqPE[mic_sock] && pdu_recevoir.header.ack == 1)
-            {
-                ack_recu =  1;
-                reliabilityWindow[mic_sock][reliabilityIndex[mic_sock]++] = 1;
-                printf("Fentre avancée \n");
-            }
-            else
-            {
-                reliabilityWindow[mic_sock][reliabilityIndex[mic_sock]++] = 0;
-                printf("Fentre pas marché, et ack reçu \n");
-            }
-        }   
-        else
+        int recu = IP_recv(&pdu_recevoir, &liste_sockets[socket].local_addr.ip_addr, &liste_sockets[socket].remote_addr.ip_addr, 1000); 
+        if ((recu != -1) &&  (pdu_recevoir.header.ack_num == numSeqPE[socket]))
         {
-            reliabilityWindow[mic_sock][reliabilityIndex[mic_sock]++] = 0;
+            cpt_ack_recu++;
         }
-        reliabilityIndex[mic_sock]=reliabilityIndex[mic_sock]%TAILLE_FENETRE;
-        printf("Index est là (ton petit compteur Kzrid), %d \n", reliabilityIndex[mic_sock]);
-
-        if (recu == 0)
-        {
-            if (definition_pertes_admissibles(reliabilityWindow[mic_sock], TAILLE_FENETRE, SEUIL))
-            {
-                printf("ACK perdu \n");
-                numSeqPE[mic_sock] = (numSeqPE[mic_sock] + 1) % 2;
-                recu = 1;
-            }
-        }
-    }
-        printf("Message %d envoyé\n", numSeqPE[mic_sock]);
+        printf("Message %d envoyé : ", numSeqPE[socket]);
         printf(__FUNCTION__);
         printf("\n");
-        return envoye;
+
     }
 
+        return (100 - (cpt_ack_recu * 100) / nb_paquets_envoyes);
+    }
+
+    
 /*void mise_en_place_fenetre(int taille_fenetre) {
     fenetre[taille_fenetre];
 }*/
@@ -255,12 +215,12 @@ int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr)
     numSeqPE[MAXIMUM_SOCKETS] = 0;
     numSeqPA[MAXIMUM_SOCKETS] = 0;
 //faire un thread qui envoie des SYN ACK reguliers jusqu a procxess pdu reveived
-
+//pthread_mutex_lock(&mutexs[socket]);
 while (liste_sockets[socket].state != ESTABLISHED)
 {
-
+    //pthread_mutex_lock(&mutexs[socket]);
 }
-
+    //pthread_mutex_unlock(&mutexs[socket]);
     *addr = liste_sockets[socket].remote_addr;
     
 
@@ -291,6 +251,7 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
 
     liste_sockets[socket].remote_addr = addr;
     liste_sockets[socket].state = ESTABLISHED;
+    liste_sockets[socket].seuil_perte=definition_seuil_dynamique(socket);
     numSeqPE[MAXIMUM_SOCKETS] = 0;
     numSeqPA[MAXIMUM_SOCKETS] = 0;
     return 0;
@@ -303,7 +264,7 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
 
 
 int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
-{  
+{  int seuil = liste_sockets[mic_sock].seuil_perte;
     // verifier si le socket auquel on veut envoyer l'information existe sinon -1
 
 
@@ -375,11 +336,11 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
             reliabilityWindow[mic_sock][reliabilityIndex[mic_sock]++] = 0;
         }
         reliabilityIndex[mic_sock]=reliabilityIndex[mic_sock]%TAILLE_FENETRE;
-        printf("Index est là (ton petit compteur Kzrid), %d \n", reliabilityIndex[mic_sock]);
+        printf("Index, %d \n", reliabilityIndex[mic_sock]);
 
         if (recu == 0)
         {
-            if (definition_pertes_admissibles(reliabilityWindow[mic_sock], TAILLE_FENETRE, SEUIL))
+            if (definition_pertes_admissibles(reliabilityWindow[mic_sock], TAILLE_FENETRE, seuil))
             {
                 printf("ACK perdu \n");
                 numSeqPE[mic_sock] = (numSeqPE[mic_sock] + 1) % 2;
@@ -454,7 +415,7 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_i
     int socket = 0;
     if (socket == -1)
     {
-        printf("Pas de chaussette pour cette adresse... \n"); printf(__FUNCTION__); printf("\n");
+        printf("Pas de socket pour cette adresse... \n"); printf(__FUNCTION__); printf("\n");
         return;
     }
 
