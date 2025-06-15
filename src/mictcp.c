@@ -6,7 +6,6 @@
 #include <pthread.h>
 #include <unistd.h>
 
-//V2 Actuelle : socket(), accept(), connect()
 
 
 
@@ -31,8 +30,8 @@ int taille_fenetre = 6;
 int reliabilityIndex[MAXIMUM_SOCKETS] = {0};
 int reliabilityWindow[MAXIMUM_SOCKETS][TAILLE_FENETRE] = {{0}};
 pthread_mutex_t mutexs[MAXIMUM_SOCKETS];
-int synAck_status[MAX_SOCKETS_CREATED] = {0};
-pthread_t synAck_ids[MAX_SOCKETS_CREATED] = {0};
+int synAck_status[MAXIMUM_SOCKETS] = {0};
+pthread_t synAck_ids[MAXIMUM_SOCKETS] = {0};
 /*---------------------------------------------------------------------------------
                                 Fonctions Persos
 ----------------------------------------------------------------------------------*/
@@ -162,7 +161,7 @@ void *retour_synAck(void *arg)
 
         if (recvVal != -1 && pduToRecv.header.syn == 1 && pduToRecv.header.ack == 1)
         {
-            send_ack(args.sock, 0, pduToRecv, remote_addr);
+            send_ack(args.sock, pduToRecv, local_addr, remote_addr);
         }
     }
 
@@ -175,9 +174,9 @@ void *synAck_en_boucle(void *arg)
     free(arg);
 
     mic_tcp_pdu pduSynAck;
-    pduSynAck.header.dest_port = sockets[args.sock].remote_addr.port;
-    pduSynAck.header.source_port = sockets[args.sock].local_addr.port;
-    pduSynAck.header.ack_num = socketReliabilities[args.sock];
+    pduSynAck.header.dest_port = liste_sockets[args.sock].remote_addr.port;
+    pduSynAck.header.source_port = liste_sockets[args.sock].local_addr.port;
+    pduSynAck.header.ack_num = reliabilityIndex[args.sock];
     pduSynAck.header.seq_num = 0;
     pduSynAck.header.fin = 0;
     pduSynAck.header.ack = 1;
@@ -185,10 +184,10 @@ void *synAck_en_boucle(void *arg)
     pduSynAck.payload.data = "";
     pduSynAck.payload.size = 0;
 
-    mic_tcp_ip_addr remoteAddrSave = sockets[args.sock].remote_addr.ip_addr;
+    mic_tcp_ip_addr remoteAddrSave = liste_sockets[args.sock].remote_addr.ip_addr;
 
     // Tant que la connexoin n'est pas étaablie on envoie des acks
-    while (sockets[args.sock].state != ESTABLISHED)
+    while (liste_sockets[args.sock].state != ESTABLISHED)
     {
         mic_tcp_pdu *pduSynAckCopy = malloc(sizeof(pduSynAck));
         memcpy(pduSynAckCopy, &pduSynAck, sizeof(pduSynAck));
@@ -540,28 +539,37 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_i
     printf("Num sequ du pdu %d \n", pdu.header.seq_num);
     printf("Num sequ acquittement %d \n", numSeqPA[socket]);
 
-            // Préparation du thread
-        if (pthread_create(&synAck_ids[sock], NULL, synAck_en_boucle, (void *)synAckArgs) != 0)
-        {
-            printf("[MIC-TCP] Error while creating synack thread!\n");
-            exit(EXIT_FAILURE);
-        }
-        sockets[sock].state = SYN_RECEIVED;
+    // Préparation du thread
+        
+    struct synAck_thread_arg *args = NULL;
+    args = malloc(sizeof(struct synAck_thread_arg));
+    args->sock + socket;
+    args->timeout = 4;
+
+
+    if (pthread_create(&synAck_ids[socket], NULL, synAck_en_boucle, (void *)args) != 0)
+    {
+        printf("[MIC-TCP] Error while creating synack thread!\n");
+        exit(EXIT_FAILURE);
+    }
+    liste_sockets[compteur_socket].state = SYN_RECEIVED;
     
     if (pdu.header.fin ==1)
     {
+        
+        char *data = malloc(1); //Tentative d'Éviter l'erreur de segmentation
         mic_tcp_pdu *pdu_Synack = malloc(sizeof(mic_tcp_pdu));
-        acka40send.header.source_port = pdu.header.source_port;
-        acka40send.header.dest_port = pdu.header.dest_port;
-        acka40send.header.seq_num = 0;
-        acka40send.header.ack_num = numSeqPA[socket];
-        acka40send.header.syn = 0;
-        acka40send.header.ack = 1;
-        acka40send.header.fin = 1;
-        acka40send.payload.data = "";
-        acka40send.payload.size = 0;
+        pdu_Synack->header.source_port = pdu.header.source_port;
+        pdu_Synack->header.dest_port = pdu.header.dest_port;
+        pdu_Synack->header.seq_num = 0;
+        pdu_Synack->header.ack_num = numSeqPA[socket];
+        pdu_Synack->header.syn = 0;
+        pdu_Synack->header.ack = 1;
+        pdu_Synack->header.fin = 1;
+        pdu_Synack->payload.data = data;
+        pdu_Synack->payload.size = 0;
 
-        mic_tcp_ip_addr *remoteAddr = malloc(sizeof(liste_sockets[compteur_socket]).remote_addr.ip_addr));
+        mic_tcp_ip_addr *remoteAddr = malloc(sizeof(liste_sockets[compteur_socket]).remote_addr.ip_addr);
         memcpy(remoteAddr, &(liste_sockets[compteur_socket].remote_addr.ip_addr), sizeof(liste_sockets[compteur_socket].remote_addr.ip_addr));
         char *remoteAddrAddr = malloc(remote_addr.addr_size);
         strcpy(remoteAddrAddr, remote_addr.addr);
@@ -580,17 +588,17 @@ void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_ip_addr local_addr, mic_tcp_i
         return;
     }
     
-    if (sockets[sock].state == SYN_RECEIVED)
+    if (liste_sockets[compteur_socket].state == SYN_RECEIVED)
     {
         printf("[MIC-TCP] CONNECTION ESTABLISHED!\n");
         // cancelling synack thread
-        if (pthread_cancel(synAck_ids[sock]) != 0)
+        if (pthread_cancel(synAck_ids[socket]) != 0)
         {
             printf("[MIC-TCP] Error while cancelling synack thread!\n");
             exit(EXIT_FAILURE);
         }
-        sockets[sock].state = ESTABLISHED;
-        pthread_mutex_unlock(&mutexs[sock]);
+        liste_sockets[compteur_socket].state = ESTABLISHED;
+        pthread_mutex_unlock(&mutexs[socket]);
     }
     send_ack(socket, pdu, local_addr, remote_addr);
 }
