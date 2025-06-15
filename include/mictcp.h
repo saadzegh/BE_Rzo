@@ -99,6 +99,17 @@ typedef struct app_buffer
     unsigned short id;
 } app_buffer;
 
+    struct synAck_thread_arg
+{
+    int timeout;
+    int sock;
+};
+
+typedef struct send_pdu
+{
+    mic_tcp_pdu *pdu;
+    mic_tcp_ip_addr *remoteAddr;
+} send_pdu;
 
 /****************************
  * Fonctions de l'interface *
