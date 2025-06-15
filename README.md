@@ -1,89 +1,50 @@
-# BE RESEAU
-## TPs BE Reseau - 3 MIC
+# Compte rendu - BE RZO
+> ZEGHARI Saad - ZRID Kenza
 
-Les détails du sujet du BE est accessible depuis le cours "Programmation Système et Réseau" sur moodle.
+## Compilation du protocole mictcp et lancement des applications de test
 
-
-## Contenu du dépôt « template » fourni
-Ce dépôt inclut le code source initial fourni pour démarrer le BE. Plus précisément : 
-  - README.md (ce fichier) qui notamment décrit la préparation de l’environnement de travail et le suivi des versions de votre travail; 
-  - tsock_texte et tsock_video : lanceurs pour les applications de test fournies. 
-  - dossier include : contenant les définitions des éléments fournis que vous aurez à manipuler dans le cadre du BE.
-  - dossier src : contenant l'implantation des éléments fournis et à compléter dans le cadre du BE.
-  - src/mictcp.c : fichier au sein duquel vous serez amenés à faire l'ensemble de vos contributions (hors bonus éventuels). 
-
-
-## Création du dépôt mictcp 
-
-1. Création d’un compte git étudiant : Si vous ne disposez pas d’un compte git, connectez vous sur http://github.com/ et créez un compte par binôme. 
-
-2. Afin d’être capable de mettre à jour le code que vous aurez produit sur le dépôt central Github, il vous faudra créer un jeton d’accès qui jouera le rôle de mot de passe. Veuillez le sauvegarder, car il vous le sera demandé lors de l'accès au dépôt central. Pour ce faire, veuillez suivre les étapes décrites : https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token
-
-3. Création d’un dépôt Etudiant sur GitHub pour le BE Reseau
-  
-   Créer une copie du dépôt template enseignant : https://github.com/rezo-insat/mictcp, en vous y rendant et en cliquant sur le bouton « use this template » situé dans le coin en haut, plutôt à droite de la page. Il est demandé de le choisir comme dépôt privé. Il est impératif pour les corrections que vous rajoutiez le compte : rezo-insat comme collaborateur afin de permettre à vos enseignants d'accéder à votre dépôt. Pour ce faire, sélectionner le bouton "settings" puis "collaborators" et rajouter comme utilisateur : rezo-insat. La marche à suivre est décrite ci-après : https://docs.github.com/en/organizations/managing-access-to-your-organizations-repositories/adding-outside-collaborators-to-repositories-in-your-organization
-
-
-4. Créer un clone local de votre dépôt Github, i.e. une copie locale du dépôt sur votre compte insa. 
-  
-    cliquer sur le bouton « code » de votre dépôt, copier l’URL qui permet de l’identifier. 
-	Ouvrir un terminal de votre machine. En vous plaçant dans le répertoire de travail de votre choix, taper depuis le terminal :
-
-        git clone <url de votre dépôt>
-
-    Vous avez désormais une copie locale de votre dépôt, que vous pouvez mettre à jour et modifier à volonté au gré de votre avancement sur les TPs. 
-
-5. Afin de nous permettre d’avoir accès à votre dépôt, merci de bien vouloir renseigner l'URL de votre dépôt sur le fichier accessible depuis le lien "fichier URLs dépôts étudiants" se trouvant sur moodle (au niveau de la section: BE Reseau).
-
-## Compilation du protocole mictcp et lancement des applications de test fournies
-
-Pour compiler mictcp et générer les exécutables des applications de test depuis le code source fourni, taper :
+Pour compiler mictcp, il faut exécuter :
 
     make
 
-Deux applicatoins de test sont fournies, tsock_texte et tsock_video, elles peuvent être lancées soit en mode puits, soit en mode source selon la syntaxe suivante:
+Les deux applications de test sont :
 
-    Usage: ./tsock_texte [-p|-s destination] port
-    Usage: ./tsock_video [[-p|-s] [-t (tcp|mictcp)]
+    ./tsock_texte [-p|-s destination] port fiabilite
+    ./tsock_video [-p|-s] [-t (tcp|mictcp)]
 
-Seul tsock_video permet d'utiliser, au choix, votre protocole mictcp ou une émulation du comportement de tcp sur un réseau avec pertes.
+## Récapitulatif par version
 
-## Suivi de versions de votre travail
+### V1 - Pas de reprise des pertes
+> Version implémentée, fonctionnelle.
 
-Vous pouvez travailler comme vous le souhaitez sur le contenu du répertoire local. Vous pouvez mettre à jour les fichiers existants, rajouter d’autres ainsi que des dossiers et en retirer certains à votre guise. 
+### V2 - Reprise des pertes totale
+> Version implémentée, fonctionnelle.
 
-Pour répercuter les changements que vous faites sur votre répertoire de travail local sur le dépôt central GitHub, sur votre terminal, taper :
- 
-    git add .
-    git commit -m «un message décrivant la mise à jour»
-    git push
+### V3 - Reprise des pertes partielle
+> Version implémentée, fonctionnelle.
 
-- Marquage des versions successives de votre travail sur mictcp 
- 
-Lorsque vous le souhaitez, git permet d'associer une étiquette à un état précis de votre dépôt par l'intermédiaires de tags. Il vous est par exemple possible d'utiliser ce mécanisme pour marquer (et par conséquence pouvoir retrouver) l'état de votre dépôt pour chacune des versions successives de votre travail sur mictcp.
++ Utilisation d'une fenêtre glissante. On initialise en considérant tous les paquets perdus, ce qui garantit une transmission plus fiable au départ.
++ Definition de perte admissible : On divise la somme des ack reçus (correspondant aux paquets bien transmis) par la taille de la fenetre. Si le résultat est superieure au seuil de fiabilité, alors en cas de perte de paquet, on ne le renvoie  pas et on passe au suivant en mettant à jour le numéro de séquence.
++ Bug au niveau de la vidéo
 
-Pour Créer un tag « v1 » et l'associer à l'état courrant de votre dépôt, vous taperez la commande suivante sur votre terminal :
+### V4.1 - Phase d'établissement de connexion et négociation
+> Version implémentée, fonctionnelle
++ Communication Syn Synack ack par un thread (côté client). On peut envoyer des ack à plusieurs reprises en cas de perte du packet Synack.
++ Un thread envoie des Synack (côté serveur) en boucle et est interrompu à la récépion du pdu.
++ Pour la fiabilité partielle : 
+    - On envoie de 10 paquets vide et comptabilisation du nombre d'ACK reçus
+    -  On définit le seuil en fonction du nombre d'ACK reçus
+Nous avons choisi de mettre en place cette méthode afin de définir le seuil car nous cherchons à l'adapter en fonction de la qualité de transmission.
+Nous appelons la fonction qui définit le seuil au sein de mic_tcp_connect afin de ne pas retester le seuil à chaque envoie de paquet. De même, nous avons ajouté un champ dans la structure socket qui renseigne ce seuil. Ce dernier nous permet de récupérer le seuil directement dans la fonction mic_tcp_send une fois attribué dans mic_tcp_connect.
+Cela ne favorise pas la vitesse de tranfert, mais ce n'est pas le but du BE.
 
-    git tag v1
+### V4.2 - Asynchronisme client et serveur
+> Version implémentée, presque fonctionnelle
++ Utilisation de mutex pour la phase d'établissement de connexion, pour ne pas consommer 100% de CPU avec un while.
++ Buffer d'émission mis en place. Construction d'un PDU par le serveur et le client indiviuellement et le place en structure send_pdu (voir .h).
++ Les PDU sont stockés sur le tas, le buffer contient des pointeurs vers ces PDU. Lorsque le thread envoie le PDU, il libère la mémoire grâce à ce même pointeur.
 
-Pour lister les tags existants au sein de votre dépôt
-
-    git tag -l
-
-Pour transférer les tags de votre dépôt local vers le dépôt central sur github:
-
-    git push origin --tags
-
-
-Ceci permettra à votre enseignant de positionner le dépôt dans l'état ou il était au moment du marquage avec chacun des tags que vous définissez. 
-   
-## Suivi de votre avancement 
-
-Veuillez utiliser, à minima, un tag pour chacune des versions successives de mictcp qui sont définies au sein du sujet du BE disponible sous moodle.
-
-
-## Liens utiles 
-
-Aide pour la création d’un dépôt depuis un template : https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template
-
-Manuel d'utilisation de git: https://git-scm.com/docs
+Problèmes :
+    - Gestion problématique du pdu.fin entre lors de l'acquittement. La gestion des threads doit encore être arrangée
+    - Erreur de segmentation lors de l'execution de la vidéo (problème avec la vidéo depuis la V.3)
+    
