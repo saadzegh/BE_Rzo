@@ -23,6 +23,22 @@ struct app_buffer_entry {
      mic_tcp_payload bf;
      TAILQ_ENTRY(app_buffer_entry) entries;
 };
+//aider par IA GÉnÉrative
+/* Condition variable used for passive wait when buffer is empty */
+pthread_cond_t sendingBufferEmptyCond;
+pthread_t send_th;
+pthread_mutex_t sendingLock;
+
+// this is for the sending buffer
+TAILQ_HEAD(sendtailhead, send_buffer_entry)
+send_buffer_head;
+struct sendtailhead *sheadp;
+struct send_buffer_entry
+{
+    send_pdu bf;
+    TAILQ_ENTRY(send_buffer_entry)
+    sendEntries;
+};
 
 /* Condition variable used for passive wait when buffer is empty */
 pthread_cond_t buffer_empty_cond;
@@ -161,8 +177,8 @@ int IP_recv(mic_tcp_pdu* pk, mic_tcp_ip_addr* local_addr, mic_tcp_ip_addr* remot
 
         /* Generate a stub address */
         if (remote_addr != NULL) {
-            inet_ntop(AF_INET, &(tmp_addr.sin_addr),remote_addr->addr,remote_addr->addr_size);
-            //remote_addr->addr = "localhost";
+            //inet_ntop(AF_INET, &(tmp_addr.sin_addr),remote_addr->addr,remote_addr->addr_size);
+            remote_addr->addr = "localhost";
             remote_addr->addr_size = strlen(remote_addr->addr) + 1; // don't forget '\0'
         }
 
@@ -283,6 +299,63 @@ void app_buffer_put(mic_tcp_payload bf)
 }
 
 
+void send_buffer_get(send_pdu *send_buff)
+{
+    /* A pointer to a buffer entry */
+    struct send_buffer_entry *entry;
+
+    /* Lock a mutex to protect the buffer from corruption */
+    pthread_mutex_lock(&sendingLock);
+
+    /* If the buffer is empty, we wait for insertion */
+    while (send_buffer_head.tqh_first == NULL)
+    {
+        pthread_cond_wait(&sendingBufferEmptyCond, &sendingLock);
+    }
+
+    /* When we execute the code below, the following conditions are true:
+       - The buffer contains at least 1 element
+       - We hold the lock on the mutex
+    */
+
+    /* The entry we want is the first one in the buffer */
+    entry = send_buffer_head.tqh_first;
+
+    /* We copy the actual data in the sendlication allocated buffer */
+    send_buff->pdu = entry->bf.pdu;
+    send_buff->remoteAddr = entry->bf.remoteAddr;
+
+    /* We remove the entry from the buffer */
+    TAILQ_REMOVE(&send_buffer_head, entry, sendEntries);
+
+    /* Release the mutex */
+    pthread_mutex_unlock(&sendingLock);
+
+    /* Clean up memory */
+    free(entry);
+
+}
+
+void send_buffer_put(send_pdu bf)
+{
+    /* Prepare a buffer entry to store the data */
+    struct send_buffer_entry *entry = malloc(sizeof(struct send_buffer_entry));
+    entry->bf.remoteAddr = bf.remoteAddr;
+    entry->bf.pdu = bf.pdu;
+
+    /* Lock a mutex to protect the buffer from corruption */
+    pthread_mutex_lock(&sendingLock);
+
+    /* Insert the packet in the buffer, at the end of it */
+    TAILQ_INSERT_TAIL(&send_buffer_head, entry, sendEntries);
+
+    /* Release the mutex */
+    pthread_mutex_unlock(&sendingLock);
+
+    /* We can now signal to any potential thread waiting that the buffer is
+       no longer empty */
+    pthread_cond_broadcast(&sendingBufferEmptyCond);
+}
 
 void* listening(void* arg)
 {
